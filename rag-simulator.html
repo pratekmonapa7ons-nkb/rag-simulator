@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>RAG simulator</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#F5F4F0; --card:#FFFFFF; --well:#EEEDE7; --ink:#161615; --ink-2:#55554F; --ink-3:#8E8E86; --line:#E0DFD8;
+  --lime:#E4F222; --lime-soft:rgba(228,242,34,.45); --lime-deep:#6E7A00; --on-lime:#161615;
+  --pos-rgb:22,22,21; --neg-rgb:150,150,140; --zero:#ECEBE5;
+  color-scheme:light; box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#111110; --card:#1B1B1A; --well:#232321; --ink:#F2F1EC; --ink-2:#B9B8B0; --ink-3:#7F7E77; --line:#2F2F2C;
+  --lime:#E4F222; --lime-soft:rgba(228,242,34,.22); --lime-deep:#D4E21E; --on-lime:#161615;
+  --pos-rgb:228,242,34; --neg-rgb:120,120,112; --zero:#2A2A27; color-scheme:dark;}}
+:root[data-theme="dark"]{
+  --bg:#111110; --card:#1B1B1A; --well:#232321; --ink:#F2F1EC; --ink-2:#B9B8B0; --ink-3:#7F7E77; --line:#2F2F2C;
+  --lime:#E4F222; --lime-soft:rgba(228,242,34,.22); --lime-deep:#D4E21E; --on-lime:#161615;
+  --pos-rgb:228,242,34; --neg-rgb:120,120,112; --zero:#2A2A27; color-scheme:dark;}
+*,*::before,*::after{box-sizing:inherit}
+html{scroll-padding-top:calc(env(safe-area-inset-top,0px) + 70px);scroll-behavior:smooth}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:"Inter Tight","Helvetica Neue",Arial,sans-serif;font-size:16px;line-height:1.5;-webkit-font-smoothing:antialiased}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:30;background:var(--bg)}
+button,input,textarea,select{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+.wrap{max-width:1160px;margin:0 auto;padding:0 22px}
+
+/* Ribbon + nav */
+.ribbon{background:var(--ink);color:var(--bg);text-align:center;font-size:14px;padding:9px 16px}
+.ribbon b{color:var(--lime);font-weight:600}
+nav.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:20;background:var(--bg);border-bottom:1px solid var(--line)}
+nav.top .wrap{display:flex;align-items:center;justify-content:space-between;height:60px;gap:16px}
+.brand{font-weight:700;font-size:19px;letter-spacing:-.03em;display:flex;align-items:center;gap:8px}
+.brand i{width:14px;height:14px;background:var(--lime);border-radius:3px;box-shadow:0 0 0 1px rgba(0,0,0,.15) inset}
+.navlinks{display:flex;gap:22px;font-size:15px}
+.navlinks a{color:var(--ink-2);text-decoration:none}
+.navlinks a:hover{color:var(--ink)}
+.btn{border:none;border-radius:8px;padding:10px 16px;cursor:pointer;font-weight:600;font-size:15px;background:var(--card);box-shadow:0 0 0 1px var(--line) inset;color:var(--ink);text-decoration:none;display:inline-block}
+.btn:hover{box-shadow:0 0 0 1px var(--ink-3) inset}
+.btn.lime{background:var(--lime);color:var(--on-lime);box-shadow:none}
+.btn.lime:hover{filter:brightness(.96)}
+.btn.dark{background:var(--ink);color:var(--bg);box-shadow:none}
+.btn:disabled{opacity:.35;cursor:default}
+
+/* Hero */
+.hero{padding:76px 0 40px}
+.hero h1{font-size:clamp(46px,8.4vw,108px);line-height:.94;letter-spacing:-.045em;font-weight:600;margin:0;max-width:11ch}
+.hero .sub{font-size:clamp(18px,2vw,22px);color:var(--ink-2);margin:22px 0 30px;max-width:42ch;line-height:1.4}
+.ask{display:flex;gap:8px;background:var(--card);border-radius:12px;padding:8px;box-shadow:0 0 0 1px var(--line) inset, 0 10px 30px rgba(0,0,0,.05);max-width:680px}
+.ask input{flex:1;min-width:0;border:none;background:transparent;font-size:18px;padding:8px 10px}
+.ask input:focus{outline:none}
+.ask:focus-within{box-shadow:0 0 0 2px var(--ink) inset}
+.try{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px;align-items:center;font-size:14px;color:var(--ink-3)}
+.chip{border:none;background:transparent;box-shadow:0 0 0 1px var(--line) inset;border-radius:999px;padding:6px 12px;font-size:14px;cursor:pointer;color:var(--ink-2)}
+.chip:hover{color:var(--ink);box-shadow:0 0 0 1px var(--ink) inset}
+.result{margin-top:28px;max-width:780px;background:var(--card);border-radius:14px;padding:20px 22px;box-shadow:0 0 0 1px var(--line) inset}
+.result .meta{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;font-size:14px;color:var(--ink-3);margin-bottom:8px}
+.result .meta b{color:var(--ink);font-weight:600}
+.result .a{font-size:19px;line-height:1.5;letter-spacing:-.01em}
+.cite{display:inline-block;font-size:11.5px;font-weight:700;background:var(--lime);color:var(--on-lime);border-radius:4px;padding:0 5px;margin-left:4px;vertical-align:2px}
+
+/* Stats band */
+.stats{display:grid;grid-template-columns:repeat(4,1fr);border-top:1px solid var(--line);border-bottom:1px solid var(--line);margin:40px 0 0}
+.stats div{padding:26px 22px 22px;border-right:1px solid var(--line)}
+.stats div:last-child{border-right:none}
+.stats strong{display:block;font-size:clamp(34px,4.6vw,56px);letter-spacing:-.04em;font-weight:600;line-height:1;font-variant-numeric:tabular-nums}
+.stats span{display:block;color:var(--ink-2);font-size:15px;margin-top:8px}
+
+/* Section heads */
+section.block{padding:84px 0 0}
+.h2{font-size:clamp(32px,4.6vw,56px);line-height:1;letter-spacing:-.04em;font-weight:600;margin:0 0 14px;max-width:18ch}
+.h2sub{color:var(--ink-2);font-size:18px;margin:0 0 30px;max-width:56ch}
+
+/* Before / after */
+.ba{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.ba .card{border-radius:16px;padding:24px;min-height:220px;display:flex;flex-direction:column;gap:14px}
+.ba .before{background:var(--well)}
+.ba .after{background:var(--ink);color:var(--bg)}
+.ba .after .k{color:var(--lime)}
+.ba .k{font-size:14px;font-weight:600;color:var(--ink-3)}
+.ba .q{font-size:15px;opacity:.75}
+.ba .txt{font-size:20px;line-height:1.45;letter-spacing:-.01em}
+.ba .flag{font-size:14px;margin-top:auto;opacity:.75}
+
+/* Simulator */
+.sim{background:var(--card);border-radius:20px;box-shadow:0 0 0 1px var(--line) inset;overflow:hidden}
+.tabs{display:flex;gap:6px;padding:12px;border-bottom:1px solid var(--line);overflow-x:auto;scrollbar-width:none;background:var(--bg)}
+.tabs::-webkit-scrollbar{display:none}
+.tab{flex:none;border:none;background:transparent;border-radius:8px;padding:8px 12px;cursor:pointer;display:flex;align-items:center;gap:8px;font-size:14.5px;color:var(--ink-2);white-space:nowrap}
+.tab .n{width:22px;height:22px;border-radius:6px;display:grid;place-items:center;font-size:12px;font-weight:700;background:var(--well);color:var(--ink-2)}
+.tab.done .n{background:var(--lime-soft);color:var(--ink)}
+.tab:hover{color:var(--ink)}
+.tab.now{background:var(--ink);color:var(--bg)}
+.tab.now .n{background:var(--lime);color:var(--on-lime)}
+.panel{padding:34px 34px 26px;min-width:0}
+.eyebrow{font-size:14px;color:var(--ink-3);margin:0 0 8px}
+.panel h3{font-size:clamp(28px,3.6vw,42px);line-height:1.02;letter-spacing:-.035em;font-weight:600;margin:0 0 12px;max-width:22ch}
+.lede{color:var(--ink-2);margin:0 0 22px;max-width:66ch;font-size:17px}
+.why{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:0 0 26px}
+.why div{background:var(--well);border-radius:12px;padding:14px 16px;font-size:14.5px;color:var(--ink-2)}
+.why b{display:block;color:var(--ink);font-weight:600;margin-bottom:3px;font-size:15px}
+
+.controls{display:flex;flex-wrap:wrap;gap:20px 30px;margin-bottom:20px;align-items:flex-end}
+.slider{display:flex;flex-direction:column;gap:8px;min-width:200px;flex:1}
+.slider label{display:flex;justify-content:space-between;font-size:14px;color:var(--ink-2)}
+.slider output{color:var(--ink);font-weight:700;font-variant-numeric:tabular-nums}
+input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:6px;border-radius:6px;background:var(--well);box-shadow:0 0 0 1px var(--line) inset}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:22px;height:22px;border-radius:6px;background:var(--lime);border:2px solid var(--ink);cursor:pointer}
+input[type=range]::-moz-range-thumb{width:18px;height:18px;border-radius:6px;background:var(--lime);border:2px solid var(--ink);cursor:pointer}
+.stat{font-size:14.5px;color:var(--ink-2)}
+.stat b{color:var(--ink);font-variant-numeric:tabular-nums}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+
+.doc{background:var(--well);border-radius:12px;padding:14px;margin-bottom:12px;border-left:4px solid var(--dc)}
+.doc input{width:100%;border:none;background:transparent;font-weight:600;font-size:17px;padding:2px 0 6px;letter-spacing:-.01em}
+.doc textarea{width:100%;min-height:96px;border:none;background:var(--card);border-radius:8px;padding:10px 12px;font-size:14.5px;line-height:1.55;resize:vertical}
+.doc .meta{font-size:13px;color:var(--ink-3);margin-top:6px}
+.qinput{width:100%;border:none;background:var(--well);border-radius:10px;padding:14px 16px;font-size:18px;box-shadow:0 0 0 1px var(--line) inset}
+select{background:var(--well);border:none;border-radius:8px;padding:8px 10px;box-shadow:0 0 0 1px var(--line) inset;max-width:100%}
+
+.chunk{border-radius:10px;padding:11px 13px;margin-bottom:8px;background:var(--well);font-size:14.5px;line-height:1.55;border-left:4px solid var(--dc)}
+.chunk .h{display:flex;justify-content:space-between;gap:12px;font-size:13px;color:var(--ink-3);margin-bottom:4px}
+.chunk .h b{color:var(--ink)}
+.ov{background:var(--lime-soft);border-radius:3px;padding:0 2px}
+mark{background:var(--lime);color:var(--on-lime);border-radius:3px;padding:0 2px}
+
+.strip{display:grid;grid-template-columns:repeat(64,1fr);gap:1px;height:14px;border-radius:3px;overflow:hidden;min-width:0}
+.strip i{display:block;border-radius:1px}
+.strip.big{height:34px;gap:2px}
+.legend{display:flex;gap:16px;font-size:13px;color:var(--ink-3);margin-top:8px;flex-wrap:wrap}
+.legend span::before{content:"";display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px;vertical-align:-1px;background:var(--sw)}
+.pills{display:flex;flex-wrap:wrap;gap:6px}
+.pill{background:var(--card);box-shadow:0 0 0 1px var(--line) inset;border-radius:6px;padding:3px 8px;font-size:13.5px}
+.pill small{color:var(--ink-3);margin-left:6px}
+.pill.drop{color:var(--ink-3);text-decoration:line-through;box-shadow:none;background:transparent}
+.flow{display:grid;gap:12px}
+.stage{background:var(--well);border-radius:12px;padding:14px 16px}
+.stage > div:first-child{font-size:13.5px;color:var(--ink-3);margin-bottom:8px}
+
+.tablewrap{overflow-x:auto;border-radius:12px;background:var(--well)}
+table{border-collapse:collapse;width:100%;min-width:620px;font-size:14px}
+th,td{text-align:left;padding:10px 12px;border-bottom:1px solid var(--line);vertical-align:middle}
+th{font-weight:600;color:var(--ink-2);font-size:13px}
+td.prev{color:var(--ink-2);max-width:260px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+td.vec{width:42%}
+.dot{display:inline-block;width:8px;height:8px;border-radius:2px;background:var(--dc);margin-right:6px}
+
+.rank{display:grid;grid-template-columns:40px 1fr;gap:12px;padding:12px 0;border-bottom:1px solid var(--line)}
+.rank .pos{font-size:24px;font-weight:600;color:var(--ink-3);text-align:right;line-height:1;letter-spacing:-.03em;font-variant-numeric:tabular-nums}
+.rank.hit .pos{color:var(--ink)}
+.rank.cut{opacity:.5}
+.rank .head{display:flex;justify-content:space-between;gap:12px;font-size:14.5px}
+.rank .head span{font-variant-numeric:tabular-nums;font-weight:600}
+.bar{height:8px;background:var(--zero);border-radius:8px;overflow:hidden;margin:7px 0 8px}
+.bar i{display:block;height:100%;background:var(--ink-3);border-radius:8px}
+.rank.hit .bar i{background:var(--lime);box-shadow:0 0 0 1px rgba(0,0,0,.15) inset}
+.rank .txt{font-size:14px;color:var(--ink-2);line-height:1.55}
+.tag{font-size:12px;font-weight:700;background:var(--ink);color:var(--bg);border-radius:4px;padding:1px 6px;margin-left:8px}
+.cutline{display:flex;align-items:center;gap:10px;color:var(--ink-3);font-size:13px;margin:8px 0}
+.cutline::before,.cutline::after{content:"";flex:1;height:1px;background:repeating-linear-gradient(90deg,var(--ink-3) 0 4px,transparent 4px 8px)}
+.warn{background:var(--lime-soft);border-radius:10px;padding:10px 14px;font-size:14.5px;margin-bottom:10px}
+
+.prompt{background:var(--well);border-radius:12px;padding:16px 18px;font-size:14px;line-height:1.65;white-space:pre-wrap;word-break:break-word}
+.seg{display:block;border-left:3px solid var(--c);padding-left:12px;margin:0 0 12px}
+.seg:last-child{margin-bottom:0}
+.seg .lab{display:block;font-size:12.5px;font-weight:700;margin-bottom:2px;color:var(--ink)}
+.seg.sys{--c:var(--ink-3)} .seg.ctx{--c:var(--lime)} .seg.q{--c:var(--ink)}
+.answer{background:var(--ink);color:var(--bg);border-radius:14px;padding:22px 24px;font-size:19px;line-height:1.55;letter-spacing:-.01em}
+.note{font-size:14px;color:var(--ink-3);margin-top:14px;max-width:70ch}
+
+.pnav{display:flex;justify-content:space-between;align-items:center;margin-top:32px;padding-top:18px;border-top:1px solid var(--line);gap:12px}
+.pnav .count{color:var(--ink-3);font-variant-numeric:tabular-nums;font-size:14px}
+
+/* Closing CTA */
+.closing{margin:96px 0 0;background:var(--ink);color:var(--bg);border-radius:24px;padding:64px 40px;text-align:left}
+.closing h2{font-size:clamp(42px,7vw,88px);line-height:.95;letter-spacing:-.045em;font-weight:600;margin:0 0 18px;max-width:12ch}
+.closing p{color:var(--ink-3);font-size:18px;margin:0 0 26px;max-width:46ch}
+footer{padding:28px 0 40px;color:var(--ink-3);font-size:14px}
+
+@media (max-width:860px){
+  .navlinks{display:none}
+  .stats{grid-template-columns:1fr 1fr}
+  .stats div:nth-child(2){border-right:none}
+  .stats div:nth-child(-n+2){border-bottom:1px solid var(--line)}
+  .ba,.why{grid-template-columns:1fr}
+  .panel{padding:24px 18px 18px}
+  .hero{padding:48px 0 28px}
+  .closing{padding:44px 22px}
+  .ask .btn{padding:10px 12px}
+}
+</style>
+</head>
+<body>
+<div class="ribbon">Runs entirely in your browser. <b>No API key, no server, nothing uploaded.</b></div>
+<nav class="top"><div class="wrap">
+  <div class="brand"><i></i>RAG simulator</div>
+  <div class="navlinks"><a href="#compare">Why RAG</a><a href="#sim">How it works</a><a href="#ask">Try a question</a></div>
+  <a class="btn dark" href="#sim">Start step 1</a>
+</div></nav>
+
+<div class="wrap">
+  <section class="hero" id="ask">
+    <h1>Models guess. RAG checks.</h1>
+    <p class="sub">Ask a question, get an answer quoted from your own documents, then open up all eight steps that produced it.</p>
+    <div class="ask">
+      <input id="heroQ" aria-label="Your question" placeholder="Ask about the residents’ handbook">
+      <button class="btn lime" id="heroGo">Get the answer</button>
+    </div>
+    <div class="try">Try:<span id="heroChips" style="display:contents"></span></div>
+    <div class="result" id="heroResult" aria-live="polite"></div>
+  </section>
+
+  <div class="stats" id="stats"></div>
+
+  <section class="block" id="compare">
+    <h2 class="h2">A model that’s never read your handbook.</h2>
+    <p class="h2sub">Language models only know what they saw in training. Retrieval hands them the right page at the moment they answer.</p>
+    <div class="ba" id="ba"></div>
+  </section>
+
+  <section class="block" id="sim">
+    <h2 class="h2">Eight steps. Every one visible.</h2>
+    <p class="h2sub">Change the documents, the chunk size or the question, and watch each stage respond. Use the arrow keys to move between steps.</p>
+    <div class="sim">
+      <div class="tabs" id="tabs" role="tablist" aria-label="Pipeline steps"></div>
+      <div class="panel" id="panel"></div>
+    </div>
+  </section>
+
+  <section class="closing">
+    <h2>Your docs have the answer.</h2>
+    <p>Swap in your own policies, manuals or FAQs on step 1 and see how well retrieval holds up.</p>
+    <div class="row"><a class="btn lime" href="#sim" id="toStep1">Edit the documents</a><a class="btn" href="#ask" style="background:transparent;color:var(--bg);box-shadow:0 0 0 1px var(--ink-2) inset">Ask another question</a></div>
+  </section>
+  <footer>The embedding model and answer writer here are simplified so they can run in a browser. Real systems use neural embeddings and a language model.</footer>
+</div>
+
+<script>
+const SAMPLE = [
+  {title:"Maintenance requests", text:"To report a maintenance problem such as a leaking tap, a broken water heater or a faulty light, open the resident app and choose Raise Request. Pick the category, add a photo and describe the issue. Urgent issues like gas smells, power failures or flooding should also be reported by calling the 24-hour helpdesk at extension 100. Routine requests are assigned to a technician within one working day, and you can track the status in the app. Once the work is done you will be asked to confirm the fix and rate the service."},
+  {title:"Clubhouse and amenities", text:"The clubhouse is open from 6 am to 10 pm every day. The swimming pool is closed on Mondays for cleaning. Residents can book the party hall or the badminton court through the app up to fourteen days in advance. Guests must be accompanied by a resident when using the gym or the pool. Children under twelve need adult supervision in the pool area."},
+  {title:"Parking and visitors", text:"Each apartment is allotted one covered parking slot. A second slot can be requested from the facility office, subject to availability. Visitors should be pre-approved in the app so that security can let them in without a call. Delivery agents are not allowed beyond the lobby; parcels are kept at the security desk and residents receive a notification when one arrives."},
+  {title:"Payments", text:"Maintenance charges are billed quarterly and are due by the tenth day of the first month of each quarter. You can pay through the app using UPI, net banking or card. Late payments attract a penalty of two percent per month. Receipts are emailed automatically and can also be downloaded from the payments section."}
+];
+const DOC_COLORS=["#C9D61A","#161615","#8E8E86","#5B8DEF","#E0794A","#3BA58B"];
+const EXAMPLES=["How do I report a broken water heater?","When is the pool closed?","Can my guests use the gym?","How do I pay maintenance charges?","Where are my parcels kept?","What is the capital of France?"];
+const GUESSES={
+  "water":"Contact your building’s management office or maintenance team, usually by phone or email. They’ll send a plumber to inspect it.",
+  "pool":"Many residential pools close one day a week for cleaning, often Monday or Tuesday. Check with your management office.",
+  "gym":"Policies vary. Many complexes allow guests if they sign a waiver, and some charge a guest fee.",
+  "pay":"Maintenance is usually paid monthly by bank transfer or cheque to the residents’ association.",
+  "parcel":"Parcels are often left at your door or with a neighbour if you’re not home.",
+  "france":"The capital of France is Paris."
+};
+
+const S={docs:SAMPLE.map(d=>({...d})),size:40,overlap:10,topK:3,query:EXAMPLES[0],step:0,visited:new Set([0]),embedPick:0};
+const DIM=64;
+
+const STOP=new Set("a an the is are was were be been being to of and or in on at for with by from as it its this that these those i you we they he she do does did how what when where which who whom why can could should would will shall may might must my your our their me us them if then so not no yes any all into about up out over under than too very just also there here have has had get got one".split(" "));
+const words=t=>(t.match(/\S+/g)||[]);
+const tokenize=t=>(t.toLowerCase().match(/[a-z0-9]+/g)||[]);
+function stem(w){if(w.length>5&&w.endsWith("ing"))return w.slice(0,-3);if(w.length>4&&w.endsWith("ed"))return w.slice(0,-2);if(w.length>3&&w.endsWith("s")&&!w.endsWith("ss"))return w.slice(0,-1);return w;}
+const terms=t=>tokenize(t).filter(w=>!STOP.has(w)&&w.length>1).map(stem);
+function fnv(s){let h=2166136261;for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619);}return h>>>0;}
+function slotsFor(t){const a=fnv(t),b=fnv(t+"#2");return[{i:a%DIM,s:(a>>>20)&1?1:-1,w:1},{i:b%DIM,s:(b>>>20)&1?1:-1,w:.5}];}
+function embed(text){const v=new Array(DIM).fill(0);for(const t of terms(text))for(const sl of slotsFor(t))v[sl.i]+=sl.s*sl.w;const n=Math.hypot(...v)||1;return v.map(x=>x/n);}
+const dot=(a,b)=>a.reduce((s,x,i)=>s+x*b[i],0);
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const docColor=i=>DOC_COLORS[i%DOC_COLORS.length];
+
+let P={};
+function compute(){
+  const size=S.size,ov=Math.min(S.overlap,size-1),stepW=Math.max(1,size-ov),chunks=[];
+  S.docs.forEach((d,di)=>{const w=words(d.text);if(!w.length)return;let local=0;
+    for(let i=0;i<w.length;i+=stepW){const sl=w.slice(i,i+size);
+      chunks.push({id:"C"+(chunks.length+1),doc:di,title:d.title||"Untitled",start:i,end:i+sl.length,text:sl.join(" "),overlapWords:local>0?Math.min(ov,sl.length):0});
+      local++;if(i+size>=w.length)break;}});
+  chunks.forEach(c=>c.vec=embed(c.text));
+  const t0=performance.now();
+  const qVec=embed(S.query),qTerms=[...new Set(terms(S.query))];
+  const ranked=chunks.map(c=>({c,score:dot(qVec,c.vec)})).sort((a,b)=>b.score-a.score);
+  const ms=performance.now()-t0;
+  const k=Math.min(S.topK,ranked.length),top=ranked.slice(0,k);
+  P={chunks,qVec,qTerms,ranked,top,k,ov,ms};
+  P.answer=generate();
+  const ctx=top.map(r=>`[${r.c.id} · ${r.c.title}]\n${r.c.text}`).join("\n\n");
+  P.ctx=ctx;
+  P.tokens=Math.round(words(`Answer using only the context below. If the answer is not in the context, say you don’t know. Cite chunk ids. ${ctx} ${S.query}`).length*1.33);
+}
+function generate(){
+  const qs=new Set(P.qTerms),c=[];
+  P.top.forEach(r=>r.c.text.split(/(?<=[.!?;])\s+/).forEach(s=>{let hit=0;new Set(terms(s)).forEach(x=>{if(qs.has(x))hit++;});if(hit)c.push({s,id:r.c.id,hit:hit+r.score});}));
+  c.sort((a,b)=>b.hit-a.hit);
+  const pick=[];for(const x of c){if(pick.length>=2)break;if(!pick.some(p=>p.s===x.s))pick.push(x);}
+  const best=P.ranked[0]?.score||0;
+  if(!pick.length||best<.15)return{known:false,html:"I don’t know. The documents don’t cover that question.",ids:[]};
+  return{known:true,html:pick.map(p=>`${esc(p.s.replace(/^[a-z]/,m=>m.toUpperCase()))}<span class="cite">${p.id}</span>`).join(" "),ids:[...new Set(pick.map(p=>p.id))]};
+}
+function guess(){const q=S.query.toLowerCase();for(const k in GUESSES)if(q.includes(k))return GUESSES[k];return "It depends on your building, but generally you should check with the management office or look for a notice board.";}
+
+function strip(v,big){const m=Math.max(...v.map(Math.abs))||1;
+  return `<div class="strip${big?" big":""}" role="img" aria-label="${DIM}-number vector">${v.map((x,i)=>{
+    if(Math.abs(x)<1e-9)return `<i style="background:var(--zero)" title="dim ${i}: 0"></i>`;
+    const a=(.2+.8*Math.abs(x)/m).toFixed(2);return `<i style="background:rgba(${x>0?"var(--pos-rgb)":"var(--neg-rgb)"},${a})" title="dim ${i}: ${x.toFixed(3)}"></i>`;}).join("")}</div>`;}
+const legend=`<div class="legend"><span style="--sw:rgb(var(--pos-rgb))">Positive</span><span style="--sw:rgb(var(--neg-rgb))">Negative</span><span style="--sw:var(--zero)">Zero</span></div>`;
+function highlight(text,q){const set=new Set(q);return words(text).map(w=>tokenize(w).map(stem).some(x=>set.has(x))?`<mark>${esc(w)}</mark>`:esc(w)).join(" ");}
+const why=(a,b)=>`<div class="why"><div><b>What happens here</b>${a}</div><div><b>In production</b>${b}</div></div>`;
+const slider=(id,label,min,max,val)=>`<div class="slider"><label for="${id}">${label}<output id="${id}Out">${val}</output></label><input type="range" id="${id}" min="${min}" max="${max}" value="${val}"></div>`;
+const head=(i,title,lede)=>`<p class="eyebrow">Step ${i} of 8</p><h3>${title}</h3><p class="lede">${lede}</p>`;
+
+const STEPS=[
+ {name:"Knowledge base",
+  view:()=>`${head(1,"Your documents. The only source of truth.","RAG answers from documents you supply, not from what the model memorised. Here’s a short residents’ handbook. Edit any text or add a document, and every later step updates.")}
+   ${why("These documents are the only facts the system can retrieve. If something isn’t written here, step 8 can’t answer it reliably.","Loaders pull in PDFs, wikis, tickets, ERP records or databases and strip headers, footers and duplicates before anything else happens.")}
+   <div id="docs">${S.docs.map((d,i)=>`<div class="doc" style="--dc:${docColor(i)}"><input aria-label="Document title" data-i="${i}" data-f="title" value="${esc(d.title)}"><textarea aria-label="Document text" data-i="${i}" data-f="text">${esc(d.text)}</textarea><div class="meta" id="meta${i}">${words(d.text).length} words</div></div>`).join("")}</div>
+   <div class="row"><button class="btn" id="addDoc">Add document</button><button class="btn" id="resetDocs">Restore sample documents</button></div>`,
+  bind:()=>{
+    document.querySelectorAll("#docs [data-f]").forEach(el=>el.addEventListener("input",()=>{S.docs[+el.dataset.i][el.dataset.f]=el.value;const m=document.getElementById("meta"+el.dataset.i);if(m)m.textContent=words(el.value).length+" words";update(false);}));
+    document.getElementById("addDoc").onclick=()=>{S.docs.push({title:"New document",text:""});update(true);const t=document.querySelectorAll("#docs textarea");t[t.length-1].focus();};
+    document.getElementById("resetDocs").onclick=()=>{S.docs=SAMPLE.map(d=>({...d}));update(true);};
+  }},
+ {name:"Chunking",
+  view:()=>`${head(2,"Small enough to match. Big enough to make sense.","Whole documents are too long and too mixed to match one question, so they’re cut into short passages. Overlap repeats a few words across each cut, so a sentence split in two still appears whole somewhere.")}
+   ${why("Each document is cut every <i>size − overlap</i> words. Highlighted words at the start of a chunk repeat the end of the chunk before it.","Splitters usually count tokens, not words, and prefer to break on headings, paragraphs or sentences. 200–800 tokens with 10–20% overlap is a common start.")}
+   <div class="controls">${slider("size","Chunk size (words)",10,120,S.size)}${slider("ov","Overlap (words)",0,40,S.overlap)}</div><div id="live"></div>`,
+  live:()=>`<p class="stat"><b>${P.chunks.length}</b> chunks. Try 15 words to see answers break apart, or 120 to see unrelated facts packed together.</p>
+   ${P.chunks.map(c=>{const w=words(c.text),o=c.overlapWords;return `<div class="chunk" style="--dc:${docColor(c.doc)}"><div class="h"><span><b>${c.id}</b> from ${esc(c.title)}</span><span>words ${c.start+1}–${c.end}</span></div>${o?`<span class="ov">${esc(w.slice(0,o).join(" "))}</span> `:""}${esc(w.slice(o).join(" "))}</div>`;}).join("")}`,
+  bind:()=>{const sz=document.getElementById("size"),ov=document.getElementById("ov");
+    const u=()=>{S.size=+sz.value;S.overlap=Math.min(+ov.value,S.size-1);ov.value=S.overlap;sizeOut.textContent=S.size;ovOut.textContent=S.overlap;update(false);};sz.oninput=u;ov.oninput=u;}},
+ {name:"Embedding",
+  view:()=>`${head(3,"Text in. Numbers out.",`An embedding model turns text into a list of numbers so that passages about similar things sit close together. Pick a chunk and watch it become a ${DIM}-number vector.`)}
+   ${why("This toy model drops filler words, trims endings, then hashes each word into two of 64 slots with a + or − sign. The result is scaled to length 1.","Neural models output 384–3,072 numbers that capture meaning, so “geyser” lands near “water heater.” This toy only matches shared words.")}
+   <div class="controls"><label class="stat" for="pick">Chunk to inspect</label><select id="pick">${P.chunks.map((c,i)=>`<option value="${i}" ${i===S.embedPick?"selected":""}>${c.id}: ${esc(c.text.slice(0,60))}…</option>`).join("")}</select></div><div id="live"></div>`,
+  live:()=>{const c=P.chunks[Math.min(S.embedPick,P.chunks.length-1)];if(!c)return `<p class="stat">Add some document text on step 1 first.</p>`;
+   const raw=tokenize(c.text),tt=[...new Set(terms(c.text))];
+   return `<div class="flow"><div class="stage"><div>1. Raw text</div>${esc(c.text)}</div>
+    <div class="stage"><div>2. Words kept, with filler struck out</div><div class="pills">${raw.map(w=>STOP.has(w)||w.length<2?`<span class="pill drop">${esc(w)}</span>`:`<span class="pill">${esc(stem(w))}</span>`).join("")}</div></div>
+    <div class="stage"><div>3. Each word hashed to a slot</div><div class="pills">${tt.map(t=>{const s=slotsFor(t)[0];return `<span class="pill">${esc(t)}<small>slot ${s.i} ${s.s>0?"+":"−"}</small></span>`;}).join("")}</div></div>
+    <div class="stage"><div>4. Final vector for ${c.id}</div>${strip(c.vec,true)}${legend}</div></div>`;},
+  bind:()=>{document.getElementById("pick").onchange=e=>{S.embedPick=+e.target.value;renderLive();};}},
+ {name:"Vector store",
+  view:()=>`${head(4,"Index once. Reuse on every question.","Each chunk’s vector is saved with its text and source. The index is built ahead of time and only rebuilt when the documents change.")}
+   ${why("Every row keeps the chunk id, its source, its vector and its original text, so the text can be handed back once a vector matches.","Vector databases such as pgvector, Pinecone, Qdrant or FAISS search millions of vectors in milliseconds and store metadata for filtering.")}<div id="live"></div>`,
+  live:()=>`<div class="tablewrap"><table><thead><tr><th>Id</th><th>Source</th><th>Vector (${DIM} numbers)</th><th>Text</th></tr></thead><tbody>
+   ${P.chunks.map(c=>`<tr><td><b>${c.id}</b></td><td><span class="dot" style="--dc:${docColor(c.doc)}"></span>${esc(c.title)}</td><td class="vec">${strip(c.vec)}</td><td class="prev" title="${esc(c.text)}">${esc(c.text)}</td></tr>`).join("")}</tbody></table></div>${legend}`},
+ {name:"Query",
+  view:()=>`${head(5,"Same model. Same space.","At question time, the query goes through the exact same embedding model. Vectors from two different models live in different spaces and can’t be compared.")}
+   ${why("Your question is cleaned and hashed exactly like the chunks, giving one more 64-number vector.","Some systems rewrite the question first, add synonyms, or generate a hypothetical answer and embed that instead.")}
+   <input class="qinput" id="q" value="${esc(S.query)}" aria-label="Your question"><div class="try">${EXAMPLES.map(e=>`<button class="chip" data-q="${esc(e)}">${esc(e)}</button>`).join("")}</div><div id="live" style="margin-top:18px"></div>`,
+  live:()=>`<div class="flow"><div class="stage"><div>Words used for matching</div><div class="pills">${P.qTerms.length?P.qTerms.map(t=>`<span class="pill">${esc(t)}</span>`).join(""):`<span class="stat">Type a question with at least one meaningful word.</span>`}</div></div><div class="stage"><div>Query vector</div>${strip(P.qVec,true)}${legend}</div></div>`,
+  bind:()=>{const q=document.getElementById("q");q.oninput=()=>setQuery(q.value,false);document.querySelectorAll("#panel .chip").forEach(b=>b.onclick=()=>{q.value=b.dataset.q;setQuery(b.dataset.q,false);});}},
+ {name:"Retrieval",
+  view:()=>`${head(6,"Every chunk scored. Only the best few kept.","The query vector is compared with every stored vector using cosine similarity: 1 means the same direction, 0 means unrelated. The top <i>k</i> go forward, the rest are dropped.")}
+   ${why("Score is the dot product of two length-1 vectors. Chunks above the dashed line are passed to the model.","Most systems mix this with keyword search, then re-rank the top 20–50 with a slower, more accurate model before keeping a handful.")}
+   <p class="stat">Question: <b>${esc(S.query)}</b></p><div class="controls">${slider("k","Chunks to retrieve (top k)",1,Math.max(1,Math.min(8,P.chunks.length)),Math.min(S.topK,Math.max(1,P.chunks.length)))}</div><div id="live"></div>`,
+  live:()=>{let o="";P.ranked.forEach((r,i)=>{if(i===P.k)o+=`<div class="cutline">Not retrieved below this line</div>`;const hit=i<P.k;
+    o+=`<div class="rank ${hit?"hit":"cut"}"><div class="pos">${i+1}</div><div><div class="head"><b>${r.c.id} <span style="font-weight:400;color:var(--ink-3)">${esc(r.c.title)}</span>${hit?`<span class="tag">Retrieved</span>`:""}</b><span>${r.score.toFixed(3)}</span></div><div class="bar"><i style="width:${Math.max(0,r.score)*100}%"></i></div><div class="txt">${highlight(r.c.text,P.qTerms)}</div></div></div>`;});
+    const best=P.ranked[0]?.score||0;
+    return (best<.15?`<div class="warn">The best match scores only ${best.toFixed(2)}. Nothing here is really relevant, so a good system should say it doesn’t know.</div>`:"")+o;},
+  bind:()=>{const k=document.getElementById("k");k.oninput=()=>{S.topK=+k.value;kOut.textContent=S.topK;update(false);};}},
+ {name:"Augmentation",
+  view:()=>`${head(7,"Facts in the prompt. Not in the model’s memory.","The retrieved chunks are pasted into the prompt beside the question, with instructions to answer only from them. That’s the “augmented” in retrieval-augmented generation.")}
+   ${why("Three parts are joined: instructions, the retrieved context labelled with chunk ids, and your question.","The prompt has to fit the model’s context window and token budget. Chunk ids let the answer cite sources people can check.")}<div id="live"></div>`,
+  live:()=>`<p class="stat">About <b>${P.tokens}</b> tokens will be sent to the model.</p><div class="prompt"><span class="seg sys"><span class="lab">Instructions</span>Answer using only the context below. If the answer is not in the context, say you don’t know. Cite chunk ids.</span><span class="seg ctx"><span class="lab">Retrieved context, ${P.k} chunk${P.k===1?"":"s"}</span>${esc(P.ctx)||"(nothing retrieved)"}</span><span class="seg q"><span class="lab">Question</span>${esc(S.query)}</span></div>`},
+ {name:"Generation",
+  view:()=>`${head(8,"Answers you can check.","The language model reads the augmented prompt and writes the answer. Because the facts are right there in the prompt, the answer can be specific, current and traced to a source.")}
+   ${why("This simulator can’t run a real model, so it quotes the retrieved sentences that share the most words with your question, with their chunk ids.","An LLM would paraphrase and combine facts from several chunks. Its answer can only be as good as retrieval: wrong chunks in, wrong answer out.")}<div id="live"></div>`,
+  live:()=>`<p class="stat">Question: <b>${esc(S.query)}</b></p><div class="answer">${P.answer.html}</div><p class="note">Ask about the capital of France. Retrieval finds nothing useful, and a well-instructed system says so instead of answering from the wrong documents.</p>`}
+];
+
+function renderHero(){
+  const a=P.answer;
+  document.getElementById("heroResult").innerHTML=`<div class="meta"><span>${a.known?`Answered from <b>${a.ids.length}</b> of <b>${P.chunks.length}</b> chunks`:`No relevant chunk among <b>${P.chunks.length}</b>`}</span><span>Search took <b>${P.ms<1?"under 1":P.ms.toFixed(1)} ms</b></span></div><div class="a">${a.html}</div>`;
+  document.getElementById("stats").innerHTML=`
+    <div><strong>${S.docs.length}</strong><span>documents in the knowledge base</span></div>
+    <div><strong>${P.chunks.length}</strong><span>chunks indexed as vectors</span></div>
+    <div><strong>${(P.ranked[0]?.score||0).toFixed(2)}</strong><span>similarity of the best match</span></div>
+    <div><strong>${P.tokens}</strong><span>tokens sent to the model</span></div>`;
+  document.getElementById("ba").innerHTML=`
+    <div class="card before"><div class="k">Without retrieval</div><div class="q">${esc(S.query)}</div><div class="txt">${esc(guess())}</div><div class="flag">Plausible, generic and impossible to verify.</div></div>
+    <div class="card after"><div class="k">With retrieval</div><div class="q">${esc(S.query)}</div><div class="txt">${P.answer.html}</div><div class="flag">${P.answer.known?"Quoted from the handbook, with sources.":"Admits the gap instead of inventing an answer."}</div></div>`;
+}
+function renderTabs(){
+  document.getElementById("tabs").innerHTML=STEPS.map((s,i)=>`<button class="tab ${i===S.step?"now":S.visited.has(i)?"done":""}" role="tab" aria-selected="${i===S.step}" data-i="${i}"><span class="n">${i+1}</span>${s.name}</button>`).join("");
+  document.querySelectorAll(".tab").forEach(b=>b.onclick=()=>go(+b.dataset.i));
+  const cur=document.querySelector(".tab.now");if(cur)cur.scrollIntoView({block:"nearest",inline:"nearest"});
+}
+function renderLive(){const st=STEPS[S.step],el=document.getElementById("live");if(el&&st.live)el.innerHTML=st.live();}
+function renderPanel(){
+  const st=STEPS[S.step],n=STEPS.length;
+  document.getElementById("panel").innerHTML=st.view()+`<div class="pnav"><button class="btn" id="prev" ${S.step===0?"disabled":""}>Previous</button><span class="count">${S.step+1} / ${n}</span><button class="btn lime" id="next" ${S.step===n-1?"disabled":""}>${S.step===n-1?"Pipeline complete":"Next: "+STEPS[S.step+1].name}</button></div>`;
+  renderLive();st.bind&&st.bind();
+  document.getElementById("prev").onclick=()=>go(S.step-1);
+  document.getElementById("next").onclick=()=>go(S.step+1);
+  renderTabs();
+}
+function update(full){compute();renderHero();if(full)renderPanel();else renderLive();}
+function setQuery(q,full){S.query=q;const h=document.getElementById("heroQ");if(document.activeElement!==h)h.value=q;update(full);}
+function go(i){if(i<0||i>=STEPS.length)return;S.step=i;S.visited.add(i);renderPanel();}
+
+document.getElementById("heroQ").value=S.query;
+document.getElementById("heroQ").addEventListener("input",e=>setQuery(e.target.value,true));
+document.getElementById("heroQ").addEventListener("keydown",e=>{if(e.key==="Enter")document.getElementById("heroResult").scrollIntoView({block:"nearest"});});
+document.getElementById("heroGo").onclick=()=>{setQuery(document.getElementById("heroQ").value,true);document.getElementById("heroResult").scrollIntoView({block:"nearest"});};
+document.getElementById("heroChips").innerHTML=EXAMPLES.map(e=>`<button class="chip" data-q="${esc(e)}">${esc(e)}</button>`).join("");
+document.querySelectorAll("#heroChips .chip").forEach(b=>b.onclick=()=>{document.getElementById("heroQ").value=b.dataset.q;setQuery(b.dataset.q,true);});
+document.getElementById("toStep1").onclick=()=>go(0);
+document.addEventListener("keydown",e=>{if(["INPUT","TEXTAREA","SELECT"].includes(document.activeElement.tagName))return;if(e.key==="ArrowRight")go(S.step+1);if(e.key==="ArrowLeft")go(S.step-1);});
+
+compute();renderHero();renderPanel();
+</script>
+</body>
+</html>
